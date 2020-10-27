@@ -52,12 +52,11 @@ void initmem(strategies strategy, size_t sz)
 	/* all implementations will need an actual block of memory to use */
 	mySize = sz;
 
-	if (myMemory != NULL)
+	if (myMemory)
 		free(myMemory); /* in case this is not the first time initmem2 is called */
 
 	/*if (head != NULL)
 	{
-		puts("something here?");
 		struct memoryList *trav;
 		for (trav = head; trav->next != head; trav = trav->next)
 		{
@@ -75,7 +74,7 @@ void initmem(strategies strategy, size_t sz)
 
 	/* TODO: Initialize memory management structure. */
 
-	head = (struct memoryList *)malloc(sizeof(struct memoryList));
+	head = malloc(sizeof(struct memoryList));
 	head->size = sz;
 	head->alloc = 0;
 	head->ptr = myMemory;
@@ -103,40 +102,43 @@ void *mymalloc(size_t requested)
 	{
 	case NotSet:
 		return NULL;
+		break;
 	case First:
 		return NULL;
+		break;
 	case Best:
 		return NULL;
+		break;
 	case Worst:
 		return NULL;
+		break;
 	case Next:
 		matching_block = find_block(requested);
+		break;
 	}
 
 	if (!matching_block)
 	{
-		fprintf(stderr, "No suitable block");
+		fprintf(stderr, "No suitable block \n");
 		return NULL;
 	}
-	printf("alloc \n");
 
 	if (matching_block->size > requested)
 	{
 		struct memoryList *newnode = malloc(sizeof(struct memoryList));
 
 		// Setting up connection for the new node.
-
-		newnode->prev = matching_block;
 		newnode->next = matching_block->next;
 		newnode->next->prev = newnode;
+		newnode->prev = matching_block;
 		matching_block->next = newnode;
 
 		newnode->size = matching_block->size - requested;
 		newnode->ptr = matching_block->ptr + requested;
 		newnode->alloc = 0;
+		matching_block->size = requested;
 
 		currentnode = newnode;
-		matching_block->size = requested;
 	}
 	else
 	{
@@ -150,6 +152,7 @@ void *mymalloc(size_t requested)
 struct memoryList *find_block(size_t requested)
 {
 	struct memoryList *start = currentnode;
+
 	do
 	{
 		if ((currentnode->alloc == 0) && currentnode->size >= requested)
@@ -164,7 +167,6 @@ struct memoryList *find_block(size_t requested)
 void myfree(void *block)
 {
 	struct memoryList *trav = head;
-	struct memoryList *temp;
 	for (trav = head; trav->next != head; trav = trav->next)
 	{
 		if (trav->ptr == block)
@@ -179,9 +181,10 @@ void myfree(void *block)
 	{
 		struct memoryList *prev = trav->prev;
 
-		prev->size += trav->size;
 		prev->next = trav->next;
 		prev->next->prev = prev;
+
+		prev->size += trav->size;
 
 		// make sure currentnode still works
 
@@ -222,21 +225,30 @@ void myfree(void *block)
 /* Get the number of contiguous areas of free space in memory. */
 int mem_holes()
 {
-	puts("mem_holes");
-	return mem_small_free(mySize + 1);
+
+	struct memoryList *trav = head;
+	int count = 0;
+
+	do
+	{
+		if (!trav->alloc)
+		{
+			count++;
+		}
+	} while ((trav = trav->next) != head);
+
+	return count;
 }
 
 /* Get the number of bytes allocated */
 int mem_allocated()
 {
-	puts("mem_allocated");
 	return mySize - mem_free();
 }
 
 /* Number of non-allocated bytes */
 int mem_free()
 {
-	puts("mem_free");
 
 	int count = 0;
 
@@ -247,106 +259,64 @@ int mem_free()
 		/* Add to total only if this block isn't allocated */
 		if (!(index->alloc))
 		{
-			puts("test index");
 			count += index->size;
 		}
 	} while ((index = index->next) != head);
 
 	return count;
-	/*int free_size = 0;
-	struct memoryList *trav;
-	for (trav = head; trav->next != head; trav = trav->next)
-	{
-		if (trav->alloc == 0)
-		{
-			free_size += trav->size;
-		}
-	}
-	return free_size; */
 }
 
 /* Number of bytes in the largest contiguous area of unallocated memory */
 int mem_largest_free()
 {
-	puts("mem_largest_free");
 
 	int max_size = 0;
 
 	/* Iterate over memory list */
-	struct memoryList *index = head;
+
+	struct memoryList *trav = head;
 	do
 	{
-		if (!(index->alloc) && index->size > max_size)
-		{
-			puts("max_test");
-			max_size = index->size;
-		}
-	} while ((index = index->next) != head);
-
-	return max_size;
-	/*int max_size = 0;
-	struct memoryList *trav;
-	for (trav = head; trav->next != head; trav = trav->next)
-	{
-		puts("alt er kaos");
-		printf("pointer: %p \n", trav);
-		if (trav->alloc == 0 && trav->size > max_size)
+		if (!(trav->alloc) && trav->size > max_size)
 		{
 			max_size = trav->size;
 		}
-	}
-	return max_size; */
+	} while ((trav = trav->next) != head);
+
+	return max_size;
 }
 
 /* Number of free blocks smaller than "size" bytes. */
 int mem_small_free(int size)
 {
-	puts("mem_smallest_free");
 	int count = 0;
 
-	struct memoryList *trav = head;
-
-	do
+	for (struct memoryList *trav = head; trav->next != head; trav = trav->next)
 	{
-		if (trav->size <= size)
+		if (trav->size < size)
 		{
-			puts("test");
 			count += !(trav->alloc);
 		}
-	} while ((trav = trav->next) != head);
+	}
 
 	return count;
 }
 
 char mem_is_alloc(void *ptr)
 {
-	puts("mem_is_alloc");
 
 	/* Iterate over the memory list */
-	struct memoryList *index = head;
-	while (index->next != head)
-	{
-		/* If the next block's ptr is after the target,
-       the target must be in this block */
-		if (ptr < index->next->ptr)
-		{
-			return index->alloc;
-		}
-		index = index->next;
-	}
+	struct memoryList *trav;
 
-	/* Iterator is now at the last block, so we assume the target is here */
-	return index->alloc;
-	/*struct memoryList *trav;
 	for (trav = head; trav->next != head; trav = trav->next)
 	{
-		if (trav->next->ptr > ptr)
-		{
 
+		if (ptr < trav->next->ptr)
+		{
 			return trav->alloc;
 		}
 	}
-	return trav->alloc; */
+	return trav->alloc;
 }
 
 /* 
@@ -418,15 +388,16 @@ strategies strategyFromString(char *strategy)
 void print_memory()
 {
 	/* Iterate over memory list */
-	struct memoryList *index;
-	for (index = head; index->next != head; index = index->next)
+	printf("Memory List {\n");
+	/* Iterate over memory list */
+	struct memoryList *index = head;
+	do
 	{
 		printf("\tBlock %p,\tsize %d,\t%s\n",
 			   index->ptr,
 			   index->size,
 			   (index->alloc ? "[ALLOCATED]" : "[FREE]"));
-	}
-
+	} while ((index = index->next) != head);
 	printf("}\n");
 }
 
