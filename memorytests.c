@@ -407,11 +407,9 @@ int test_alloc_4(int argc, char **argv)
 		{
 			myfree(mem_pool() + i);
 		}
-		print_memory();
 		for (i = 1; i < 100; i += 2)
 		{
 			void *pointer = mymalloc(1);
-			printf("the pointers %p %p %p \n", lastPointer, pointer, lastPointer + 2);
 			if (i > 1 && pointer != (lastPointer + 2))
 			{
 				printf("Second allocation with %s was not sequential at %i; expected %p, actual %p\n", strategy_name(strategy), i, lastPointer + 1, pointer);

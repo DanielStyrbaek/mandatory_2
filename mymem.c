@@ -89,6 +89,7 @@ void *mymalloc(size_t requested)
 {
 
 	struct memoryList *trav = currentnode;
+	struct memoryList *start = currentnode;
 
 	assert((int)myStrategy > 0);
 
@@ -103,100 +104,95 @@ void *mymalloc(size_t requested)
 	case Worst:
 		return NULL;
 	case Next:
-		while (trav->alloc != 0 && trav->size <= requested)
+		printf("alloc \n");
+		while (trav->alloc && trav->size <= requested)
 		{
 			if (trav->next == NULL)
 			{
 				printf("hej \n");
 				trav = head;
 			}
+			else if (trav->next == start)
+			{
+				printf("No suitable node \n");
+				return NULL;
+			}
 			else
 			{
 				trav = trav->next;
 			}
 		}
-		if (trav->size >= requested)
-		{
+		if (trav->size > requested)
 
-			if (trav->size == requested)
-			{
-				trav->alloc = 1;
-				currentnode = trav;
-				return trav->ptr;
-			}
+		{
 			struct memoryList *newnode = (struct memoryList *)malloc(sizeof(struct memoryList));
 
 			// Setting up connection for the new node.
 
-			if (trav->next != NULL)
-			{
-				newnode->next = trav->next;
-				trav->next->prev = newnode;
+			newnode->prev = trav;
+			newnode->next = trav->next;
 
-				newnode->prev = trav;
-				trav->next = newnode;
-			}
-			else
-			{
-				// we are either in the beginning of the list or at the end
-				trav->next = newnode;
-				newnode->prev = trav;
-				newnode->next = NULL;
-				last = newnode;
-			}
 			newnode->size = trav->size - requested;
 			newnode->ptr = trav->ptr + requested;
 			newnode->alloc = 0;
 
-			trav->alloc = 1;
+			trav->next = newnode;
 			trav->size = requested;
-
-			if (trav->next != NULL)
-			{
-				currentnode = newnode;
-			}
-			else
-			{
-				currentnode = head;
-			}
 		}
-		else
+		trav->alloc = 1;
+
+		if (trav->next != NULL)
 		{
 			currentnode = trav->next;
 		}
-		return trav->ptr;
+		else
+		{
+			currentnode = head;
+		}
 	}
+	return trav->ptr;
 }
 
-/* Frees a block of memory previously allocated by mymalloc. */
 void myfree(void *block)
 {
-	printf("free? \n");
 	struct memoryList *trav;
 	struct memoryList *temp;
+	printf("block to be freed: %p \n", block);
 	for (trav = head; trav != NULL; trav = trav->next)
 	{
-
+		puts("hej \n");
 		if (trav->ptr == block)
 		{
 			break;
 		}
 	}
 
+	puts("found block \n");
+
+	if (!trav)
+	{
+		puts("trav is null");
+		return;
+	}
 	trav->alloc = 0;
+
+	puts("trav");
 	if ((trav != head) && (trav->prev->alloc == 0))
 	{
+		printf("prev \n");
+		print_memory();
+
 		trav->prev->size += trav->size;
 		temp = trav;
 
-		if (trav == last)
+		if (trav->next == NULL)
 		{
 			trav->prev->next = NULL;
 		}
 		else
 		{
 			trav->prev->next = trav->next;
-			trav->next->prev = trav->prev;
+			trav->prev->next->prev = trav->prev;
 		}
 
 		// make sure currentnode still works
@@ -206,35 +202,50 @@ void myfree(void *block)
 			currentnode = trav->prev;
 		}
 
-		free(temp);
+		printf("free temp: %p \n", *temp);
+		printf("\tBlock %p,\tsize %d,\t%s\n",
+			   temp->ptr,
+			   temp->size,
+			   (temp->alloc ? "[ALLOCATED]" : "[FREE]"));
 		trav = trav->prev;
-	}
-
-	if ((trav->next != NULL) && (trav->next->alloc == 0))
-	{
-		struct memoryList *second = trav->next;
-		second->prev->size += second->size;
-		temp = second;
-
-		if (second == last)
-		{
-			second->prev->next = NULL;
-		}
-		else
-		{
-			second->prev->next = second->next;
-			second->next->prev = second->prev;
-		}
-
-		// make sure currentnode still works
-		if (currentnode == second)
-		{
-			currentnode = trav;
-		}
-
 		free(temp);
 	}
-	return;
+
+	if (trav->next != NULL && trav->next != head)
+	{
+		if (trav->next->alloc == 0)
+		{
+
+			struct memoryList *second = trav->next;
+			printf("next \n");
+			print_memory();
+
+			if (second->next == NULL)
+			{
+				second->prev->next = NULL;
+			}
+			else
+			{
+				trav->next = second->next;
+
+				second->next->prev = trav;
+			}
+			trav->size += second->size;
+
+			// make sure currentnode still works
+			if (currentnode == second)
+			{
+				currentnode = trav;
+			}
+
+			printf("free second: %p", *second);
+			printf("\tBlock %p,\tsize %d,\t%s\n",
+				   second->ptr,
+				   second->size,
+				   (second->alloc ? "[ALLOCATED]" : "[FREE]"));
+			free(second);
+		}
+	}
 }
 
 /****** Memory status/property functions ******
@@ -246,6 +257,7 @@ void myfree(void *block)
 /* Get the number of contiguous areas of free space in memory. */
 int mem_holes()
 {
+	puts("mem_holes");
 	int mem_holes = 0;
 	int number_of_counts = 0;
 	struct memoryList *trav;
@@ -256,22 +268,26 @@ int mem_holes()
 		{
 			mem_holes += 1;
 		}
+		if ((trav->next != NULL) && (trav->next->next == trav))
+		{
+			break;
+		}
 	}
 
-	printf("mem holes: %d \n", mem_holes);
-	printf("mem counts: %d \n", number_of_counts);
 	return mem_holes;
 }
 
 /* Get the number of bytes allocated */
 int mem_allocated()
 {
+	puts("mem_allocated");
 	return mySize - mem_free();
 }
 
 /* Number of non-allocated bytes */
 int mem_free()
 {
+	puts("mem_free");
 	int free_size = 0;
 	struct memoryList *trav;
 	for (trav = head; trav != NULL; trav = trav->next)
@@ -280,30 +296,42 @@ int mem_free()
 		{
 			free_size += trav->size;
 		}
+
+		if ((trav->next != NULL) && (trav->next->next == trav))
+		{
+			break;
+		}
 	}
-	printf("mem allocated: %d \n", free_size);
 	return free_size;
 }
 
 /* Number of bytes in the largest contiguous area of unallocated memory */
 int mem_largest_free()
 {
+	puts("mem_largest_free");
 	int max_size = 0;
 	struct memoryList *trav;
 	for (trav = head; trav != NULL; trav = trav->next)
 	{
+		puts("alt er kaos");
+		printf("pointer: %p \n", trav);
 		if (trav->alloc == 0 && trav->size > max_size)
 		{
 			max_size = trav->size;
 		}
+
+		if ((trav->next != NULL) && (trav->next->next == trav))
+		{
+			break;
+		}
 	}
-	printf("max size: %d \n", max_size);
 	return max_size;
 }
 
 /* Number of free blocks smaller than "size" bytes. */
 int mem_small_free(int size)
 {
+	puts("mem_smallest_free");
 	int count = 0;
 
 	struct memoryList *trav;
@@ -313,6 +341,10 @@ int mem_small_free(int size)
 		{
 			count += 1;
 		}
+		if ((trav->next != NULL) && (trav->next->next == trav))
+		{
+			break;
+		}
 	}
 
 	return count;
@@ -320,12 +352,12 @@ int mem_small_free(int size)
 
 char mem_is_alloc(void *ptr)
 {
+	puts("mem_is_alloc");
 	struct memoryList *trav;
 	for (trav = head; trav != NULL; trav = trav->next)
 	{
 		if (trav->ptr == ptr)
 		{
-			printf("mem_is_alloc %d \n", trav->alloc);
 
 			return trav->alloc;
 		}
