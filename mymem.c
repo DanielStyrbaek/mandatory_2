@@ -12,6 +12,7 @@
 //initialize prototype functions
 struct memoryList *find_block(size_t requested);
 void *free_adjacent(struct memoryList *trav, struct memoryList *node);
+void insertBlock(struct memoryList *block, size_t requested);
 
 struct memoryList
 {
@@ -55,16 +56,6 @@ void initmem(strategies strategy, size_t sz)
 	if (myMemory)
 		free(myMemory); /* in case this is not the first time initmem2 is called */
 
-	/*if (head != NULL)
-	{
-		struct memoryList *trav;
-		for (trav = head; trav->next != head; trav = trav->next)
-		{
-			free(trav->prev);
-		}
-		free(trav);
-	} */
-
 	if (head)
 	{
 		struct memoryList *trav = head;
@@ -76,14 +67,9 @@ void initmem(strategies strategy, size_t sz)
 
 		free(trav);
 	}
-	//free(head);
-	/* TODO: release any other memory you were using for bookkeeping when doing a re-initialization! */
 
 	printf("Setup memory \n");
 	myMemory = malloc(sz);
-
-	/* TODO: Initialize memory management structure. */
-
 	head = malloc(sizeof(struct memoryList));
 	head->size = sz;
 	head->alloc = 0;
@@ -129,35 +115,43 @@ void *mymalloc(size_t requested)
 
 	if (!matching_block)
 	{
-		fprintf(stderr, "No suitable block \n");
+		fprintf(stderr, "No suitable block found \n");
 		return NULL;
 	}
 
 	if (matching_block->size > requested)
 	{
-		struct memoryList *newnode = malloc(sizeof(struct memoryList));
-
-		// Setting up connection for the new node.
-		newnode->next = matching_block->next;
-		newnode->next->prev = newnode;
-		newnode->prev = matching_block;
-		matching_block->next = newnode;
-
-		newnode->size = matching_block->size - requested;
-		newnode->ptr = matching_block->ptr + requested;
-		newnode->alloc = 0;
-		matching_block->size = requested;
-
-		currentnode = newnode;
+		insertBlock(matching_block, requested);
 	}
+	// Since we will only enter this part of the code if the block that was found is exactly the size of the request
+	// simply update the currentnode to point to the current nodes next node. Before allocating it and returning the pointer for the matched block
 	else
 	{
 		currentnode = matching_block->next;
 	}
-
+	// Indicate that the matched block has been allocated and return a pointer to it.
 	matching_block->alloc = 1;
 
 	return matching_block->ptr;
+}
+
+void insertBlock(struct memoryList *block, size_t requested)
+{
+	// Create a new node, this node is to be set adjacent to the matched block (current node)
+	struct memoryList *newnode = malloc(sizeof(struct memoryList));
+
+	// Setting up connection for the new node
+	newnode->next = block->next;
+	newnode->next->prev = newnode;
+	newnode->prev = block;
+	block->next = newnode;
+
+	newnode->size = block->size - requested;
+	newnode->ptr = block->ptr + requested;
+	newnode->alloc = 0;
+	block->size = requested;
+
+	currentnode = newnode;
 }
 
 struct memoryList *find_block(size_t requested)
