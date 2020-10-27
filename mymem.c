@@ -89,7 +89,6 @@ void initmem(strategies strategy, size_t sz)
 void *mymalloc(size_t requested)
 {
 
-	struct memoryList *start = currentnode;
 	struct memoryList *matching_block = NULL;
 
 	assert((int)myStrategy > 0);
@@ -113,6 +112,7 @@ void *mymalloc(size_t requested)
 		break;
 	}
 
+	// Our search didn't yield a compatible block, log this and do not allocate any memory.
 	if (!matching_block)
 	{
 		fprintf(stderr, "No suitable block found \n");
@@ -123,8 +123,11 @@ void *mymalloc(size_t requested)
 	{
 		insertBlock(matching_block, requested);
 	}
-	// Since we will only enter this part of the code if the block that was found is exactly the size of the request
+	// Since we will only enter this part of the code if the block that was found is exactly the size of the request -
+	// We do not need to make a new node, since the current list structure can facilitate the allocattion of the request, with memory leftover.
 	// simply update the currentnode to point to the current nodes next node. Before allocating it and returning the pointer for the matched block
+
+	// This could also be seen as (if block->size == requested)
 	else
 	{
 		currentnode = matching_block->next;
@@ -133,6 +136,38 @@ void *mymalloc(size_t requested)
 	matching_block->alloc = 1;
 
 	return matching_block->ptr;
+}
+
+void myfree(void *block)
+{
+	// Iniate a pointer to traverse the list
+	struct memoryList *trav = head;
+	// Since its a circular list, make sure we dont loop forever, by stopping at the last node.
+	for (trav = head; trav->next != head; trav = trav->next)
+	{
+		if (trav->ptr == block)
+		{
+			break;
+		}
+	}
+	// Mark the block as freed. If no adjacent blocks are also free, then do nothing else.
+	trav->alloc = 0;
+
+	// If the block isnt the head of the list, and the previous node isn't allocated merge into one block
+	if ((trav != head) && !(trav->prev->alloc))
+	{
+		// set up helper pointer
+		struct memoryList *previous = trav->prev;
+		free_adjacent(trav, previous);
+		// since we are merging the contents of this block into the adjacent block, move the trav pointer space back in the list
+		trav = previous;
+	}
+
+	// likewise for the next block
+	if (trav->next != head && !(trav->next->alloc))
+	{
+		free_adjacent(trav->next, trav);
+	}
 }
 
 void insertBlock(struct memoryList *block, size_t requested)
@@ -146,9 +181,13 @@ void insertBlock(struct memoryList *block, size_t requested)
 	newnode->prev = block;
 	block->next = newnode;
 
+	// set the values for the newnode
+	// The size of the new (free) node will be whatever is remaining of the matched block after subtracting the requested memory space
 	newnode->size = block->size - requested;
 	newnode->ptr = block->ptr + requested;
 	newnode->alloc = 0;
+
+	// set the matched block to be equal the size of the request
 	block->size = requested;
 
 	currentnode = newnode;
@@ -156,6 +195,7 @@ void insertBlock(struct memoryList *block, size_t requested)
 
 struct memoryList *find_block(size_t requested)
 {
+	// Since im implementing next-fit, make sure to start from the current node instead of head, whens searching for a suitable block of memory
 	struct memoryList *start = currentnode;
 
 	do
@@ -170,47 +210,19 @@ struct memoryList *find_block(size_t requested)
 	return NULL;
 }
 
-void myfree(void *block)
-{
-	struct memoryList *trav = head;
-	for (trav = head; trav->next != head; trav = trav->next)
-	{
-		if (trav->ptr == block)
-		{
-			break;
-		}
-	}
-	trav->alloc = 0;
-
-	if ((trav != head) && !(trav->prev->alloc))
-	{
-		struct memoryList *prev = trav->prev;
-		free_adjacent(trav, prev);
-		trav = prev;
-	}
-
-	if (trav->next != head && !(trav->next->alloc))
-	{
-
-		struct memoryList *second = trav->next;
-		free_adjacent(second, trav);
-	}
-}
-
 void *free_adjacent(struct memoryList *trav, struct memoryList *node)
 {
-	struct memoryList *temp = trav;
 
 	node->size = trav->size;
 	node->next = trav->next;
 	node->next->prev = trav->prev;
 
-	if (currentnode == temp)
+	if (currentnode == trav)
 	{
 		currentnode = node;
 	}
 
-	free(temp);
+	free(trav);
 }
 
 /****** Memory status/property functions ******
@@ -230,7 +242,7 @@ int mem_holes()
 	{
 		if (!trav->alloc)
 		{
-			count++;
+			count += 1;
 		}
 	} while ((trav = trav->next) != head);
 
@@ -266,7 +278,6 @@ int mem_free()
 /* Number of bytes in the largest contiguous area of unallocated memory */
 int mem_largest_free()
 {
-
 	int max_size = 0;
 
 	/* Iterate over memory list */
@@ -290,9 +301,9 @@ int mem_small_free(int size)
 
 	for (struct memoryList *trav = head; trav->next != head; trav = trav->next)
 	{
-		if (trav->size < size)
+		if (trav->size <= size && !(trav->alloc))
 		{
-			count += !(trav->alloc);
+			count += 1;
 		}
 	}
 
