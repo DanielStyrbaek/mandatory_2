@@ -32,11 +32,9 @@ static struct memoryList *head;
 static struct memoryList *currentnode;
 
 /* initmem must be called prior to mymalloc and myfree.
-
    initmem may be called more than once in a given exeuction;
    when this occurs, all memory you previously malloc'ed  *must* be freed,
    including any existing bookkeeping data.
-
    strategy must be one of the following:
 		- "best" (best-fit)
 		- "worst" (worst-fit)
