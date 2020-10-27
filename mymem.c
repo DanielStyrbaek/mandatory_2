@@ -9,7 +9,9 @@
  * You may change this to fit your implementation.
  */
 
+//initialize prototype functions
 struct memoryList *find_block(size_t requested);
+void *free_adjacent(struct memoryList *trav, struct memoryList *node);
 
 struct memoryList
 {
@@ -64,7 +66,17 @@ void initmem(strategies strategy, size_t sz)
 	} */
 
 	if (head)
-		free(head);
+	{
+		struct memoryList *trav = head;
+		while (trav->next != head)
+		{
+			free(trav->prev);
+			trav = trav->next;
+		}
+
+		free(trav);
+	}
+	//free(head);
 	/* TODO: release any other memory you were using for bookkeeping when doing a re-initialization! */
 
 	printf("Setup memory \n");
@@ -142,6 +154,7 @@ void *mymalloc(size_t requested)
 	{
 		currentnode = matching_block->next;
 	}
+
 	matching_block->alloc = 1;
 
 	return matching_block->ptr;
@@ -162,6 +175,7 @@ struct memoryList *find_block(size_t requested)
 
 	return NULL;
 }
+
 void myfree(void *block)
 {
 	struct memoryList *trav = head;
@@ -172,26 +186,12 @@ void myfree(void *block)
 			break;
 		}
 	}
-
 	trav->alloc = 0;
 
 	if ((trav != head) && !(trav->prev->alloc))
 	{
 		struct memoryList *prev = trav->prev;
-
-		prev->next = trav->next;
-		prev->next->prev = prev;
-
-		prev->size += trav->size;
-
-		// make sure currentnode still works
-
-		if (currentnode == trav)
-		{
-			currentnode = prev;
-		}
-
-		free(trav);
+		free_adjacent(trav, prev);
 		trav = prev;
 	}
 
@@ -199,19 +199,24 @@ void myfree(void *block)
 	{
 
 		struct memoryList *second = trav->next;
-
-		trav->next = second->next;
-		second->next->prev = trav;
-		trav->size += second->size;
-
-		// make sure currentnode still works
-		if (currentnode == second)
-		{
-			currentnode = trav;
-		}
-
-		free(second);
+		free_adjacent(second, trav);
 	}
+}
+
+void *free_adjacent(struct memoryList *trav, struct memoryList *node)
+{
+	struct memoryList *temp = trav;
+
+	node->size = trav->size;
+	node->next = trav->next;
+	node->next->prev = trav->prev;
+
+	if (currentnode == temp)
+	{
+		currentnode = node;
+	}
+
+	free(temp);
 }
 
 /****** Memory status/property functions ******
