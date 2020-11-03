@@ -10,7 +10,10 @@
  */
 
 //initialize prototype functions
-struct memoryList *find_block(size_t requested);
+struct memoryList *find_block_next(size_t requested);
+struct memoryList *find_block_worst(size_t requested);
+struct memoryList *find_block_first(size_t requested);
+struct memoryList *find_block_best(size_t requested);
 void *free_adjacent(struct memoryList *trav);
 void insertBlock(struct memoryList *block, size_t requested);
 
@@ -33,6 +36,7 @@ void *myMemory = NULL;
 
 static struct memoryList *head;
 static struct memoryList *currentnode;
+static struct memoryList *largestFree;
 
 /* initmem must be called prior to mymalloc and myfree.
    initmem may be called more than once in a given exeuction;
@@ -92,16 +96,16 @@ void *mymalloc(size_t requested)
 		return NULL;
 		break;
 	case First:
-		return NULL;
+		matching_block = find_block_first(requested);
 		break;
 	case Best:
-		return NULL;
+		matching_block = find_block_best(requested);
 		break;
 	case Worst:
-		return NULL;
+		matching_block = find_block_worst(requested);
 		break;
 	case Next:
-		matching_block = find_block(requested);
+		matching_block = find_block_next(requested);
 		break;
 	}
 
@@ -209,7 +213,7 @@ void insertBlock(struct memoryList *node, size_t requested)
 }
 
 // find a suitable block in memory
-struct memoryList *find_block(size_t requested)
+struct memoryList *find_block_next(size_t requested)
 {
 	// since im implementing next-fit make sure we start from currentnode, instead of head when searching through list.
 	struct memoryList *start = currentnode;
@@ -229,6 +233,54 @@ struct memoryList *find_block(size_t requested)
 	return NULL;
 }
 
+struct memoryList *find_block_worst(size_t requested)
+{
+	mem_largest_free();
+	return largestFree;
+}
+
+struct memoryList *find_block_best(size_t requested)
+{
+	struct memoryList *lowest = NULL;
+	struct memoryList *trav = head;
+	int lowestSize = mySize + 1;
+
+	do
+	{
+		if (trav->alloc == 0)
+		{
+			if (trav->size >= requested && trav->size < lowestSize)
+			{
+				lowest = trav;
+				lowestSize = lowest->size;
+			}
+		}
+	} while ((trav = trav->next) != head);
+
+	if (lowest)
+	{
+		return lowest;
+	}
+	else
+	{
+		return NULL;
+	}
+}
+
+struct memoryList *find_block_first(size_t requested)
+{
+	struct memoryList *trav = head;
+
+	do
+	{
+		if (trav->size >= requested && !(trav->alloc))
+		{
+			return trav;
+		}
+	} while ((trav = trav->next) != head);
+
+	return NULL;
+}
 /****** Memory status/property functions ******
  * Implement these functions.
  * Note that when refered to "memory" here, it is meant that the 
@@ -285,20 +337,34 @@ int mem_free()
 int mem_largest_free()
 {
 
-	int max_size = 0;
-
 	// Iterate over memory list and find the largest unallocated node
+
+	largestFree = NULL;
 
 	struct memoryList *trav = head;
 	do
 	{
-		if (!(trav->alloc) && trav->size > max_size)
+		if (!trav->alloc)
 		{
-			max_size = trav->size;
+			if (!largestFree)
+			{
+				largestFree = trav;
+			}
+			else if (trav->size > largestFree->size)
+			{
+				largestFree = trav;
+			}
 		}
 	} while ((trav = trav->next) != head);
 
-	return max_size;
+	if (largestFree)
+	{
+		return largestFree->size;
+	}
+	else
+	{
+		return 0;
+	}
 }
 
 /* Number of free blocks smaller than "size" bytes. */
@@ -454,8 +520,6 @@ void try_mymem(int argc, char **argv)
 	e = mymalloc(100);
 	myfree(b);
 	myfree(d);
-	myfree(c);
-	myfree(e);
 
 	print_memory();
 	print_memory_status();
