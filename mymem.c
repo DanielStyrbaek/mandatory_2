@@ -96,7 +96,7 @@ void *mymalloc(size_t requested)
 		return NULL;
 		break;
 	case First:
-		return NULL;
+		matching_block = find_block_first(requested);
 		break;
 	case Best:
 		matching_block = find_block_best(requested);
@@ -239,10 +239,6 @@ struct memoryList *find_block_worst(size_t requested)
 	return largestFree;
 }
 
-struct memoryList *find_block_first(size_t requested)
-{
-}
-
 struct memoryList *find_block_best(size_t requested)
 {
 	struct memoryList *lowest = NULL;
@@ -271,6 +267,20 @@ struct memoryList *find_block_best(size_t requested)
 	}
 }
 
+struct memoryList *find_block_first(size_t requested)
+{
+	struct memoryList *trav = head;
+
+	do
+	{
+		if (trav->size >= requested && !(trav->alloc))
+		{
+			return trav;
+		}
+	} while ((trav = trav->next) != head);
+
+	return NULL;
+}
 /****** Memory status/property functions ******
  * Implement these functions.
  * Note that when refered to "memory" here, it is meant that the 
@@ -510,8 +520,6 @@ void try_mymem(int argc, char **argv)
 	e = mymalloc(100);
 	myfree(b);
 	myfree(d);
-	myfree(c);
-	myfree(e);
 
 	print_memory();
 	print_memory_status();
